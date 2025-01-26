@@ -1,0 +1,70 @@
+#https://chatgpt.com/c/6796451b-b228-8003-8fbd-3864ea94cb11
+#!/bin/bash
+
+# Atualiza a lista de pacotes do sistema
+sudo apt update
+
+# Instala os pacotes necessários
+sudo apt install -y motion ffmpeg v4l-utils python3-pip python3-setuptools libcurl4-openssl-dev libjpeg-dev python3.12-venv
+
+# Cria um ambiente virtual Python para o MotionEye
+python3.12 -m venv ambiente_venv
+
+# Ativa o ambiente virtual
+source ambiente_venv/bin/activate
+
+# Instala o MotionEye no ambiente virtual
+pip install --pre motioneye
+
+# Exibe as informações da instalação do MotionEye para validação
+pip show motioneye
+
+# Cria os diretórios necessários para o MotionEye
+sudo mkdir -p /root/motioneye /var/log/motioneye /var/lib/motioneye /run/motioneye /etc/motioneye
+
+# Define as permissões corretas para os diretórios criados
+sudo chown -R root:root /root/motioneye /var/log/motioneye /var/lib/motioneye /run/motioneye /etc/motioneye
+
+# Copia o arquivo de configuração de exemplo do MotionEye para o diretório de configuração
+cp /root/ambiente_venv/lib/python3.12/site-packages/motioneye/extra/motioneye.conf.sample /root/motioneye/motioneye.conf
+
+# Cria um arquivo de configuração para recriar o diretório /run/motioneye no boot
+sudo bash -c 'cat > /etc/tmpfiles.d/motioneye.conf <<EOF
+d /run/motioneye 0755 root root -
+EOF'
+
+# Cria um arquivo de serviço systemd para o MotionEye
+sudo bash -c 'cat > /etc/systemd/system/motioneye.service <<EOF
+[Unit]
+Description=motionEye server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStartPre=/bin/mkdir -p /run/motioneye
+ExecStartPre=/bin/chown -R root:root /run/motioneye
+ExecStart=/root/ambiente_venv/bin/meyectl startserver -c /root/motioneye/motioneye.conf
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF'
+
+# Recarrega o daemon do systemd para reconhecer o novo serviço
+sudo systemctl daemon-reload
+
+# Habilita o serviço MotionEye para iniciar automaticamente no boot
+sudo systemctl enable motioneye.service
+
+# Inicia o serviço MotionEye
+sudo systemctl start motioneye.service
+
+# Verifica o status do serviço MotionEye
+sudo systemctl status motioneye.service
+
+# Exibe mensagem de conclusão
+echo "Script concluído. Acesse o MotionEye em http://<IP_do_servidor>:8765."
+
+# Arquivo de configuração
+echo "Para editar o arquivo de configuração, execute: nano /root/motioneye/motioneye.conf"
